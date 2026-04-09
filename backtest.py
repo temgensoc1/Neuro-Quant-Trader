@@ -40,7 +40,7 @@ print(f"Buy & Hold Market Return: {market_return:.2f}%")
 
 # 8. Success Metric: Did we beat the market?
 if total_return > market_return:
-    print("\nRESULT: The bot outperformed the market! 🚀")
+    print("\nRESULT: The bot outperformed the market! ")
 else:
     print("\nRESULT: The market performed better. Time to adjust the 'senses'.")
 
