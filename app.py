@@ -7,17 +7,22 @@ import requests
 # 1. Page Configuration
 st.set_page_config(page_title="Neuro-Quant Terminal", layout="wide", page_icon="🧠")
 
-# Custom CSS for a "Terminal" feel
+# Custom CSS for a "Terminal" feel - FIXED SYNTAX
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
-    .stMetric { background-color: #1a1c24; padding: 15px; border-radius: 10px; border: 1px solid #2d2e35; }
+    div[data-testid="stMetricValue"] { font-size: 1.8rem; color: #00ff00; }
+    div[data-testid="stMetric"] { 
+        background-color: #1a1c24; 
+        padding: 15px; 
+        border-radius: 10px; 
+        border: 1px solid #2d2e35; 
+    }
     </style>
-    """, unsafe_base64=True)
+    """, unsafe_allow_html=True)
 
 # 2. Sidebar - Advanced Parameter Tuning
 with st.sidebar:
-    st.image("https://img.icons8.com/nolan/64/brain.png", width=60)
     st.header("Terminal Settings")
     
     st.subheader("📊 Position Sizing")
@@ -40,7 +45,7 @@ def get_live_data():
         data = requests.get(url).json()
         return float(data['Realtime Currency Exchange Rate']['5. Exchange Rate'])
     except:
-        return 1.0850
+        return 1.0850 # Default if API limit reached
 
 current_price = get_live_data()
 
@@ -49,7 +54,7 @@ col_header1, col_header2 = st.columns([2, 1])
 with col_header1:
     st.write("Proprietary Institutional Grade Trading Environment")
 with col_header2:
-    st.button(f"EUR/USD: {current_price}", disabled=True)
+    st.metric("LIVE EUR/USD", current_price)
 
 st.markdown("---")
 
@@ -58,7 +63,7 @@ sig_col1, sig_col2 = st.columns([1, 2])
 
 with sig_col1:
     st.subheader("📡 Live Signal")
-    # Dynamic Signal Logic based on current price vs a "Neural Pivot" (1.0900)
+    # Dynamic Signal Logic based on current price vs a "Neural Pivot"
     pivot = 1.0900
     if current_price < pivot:
         st.error("📉 SELL SIGNAL")
@@ -71,12 +76,10 @@ with sig_col1:
 with sig_col2:
     st.subheader("📝 Strategy Logic (Active)")
     st.code(f"""
-    IF Price ({current_price}) > Baseline ({slow_ma}): 
-        Direction = BULLISH
-    ELSE:
+    IF Price ({current_price}) < Pivot ({pivot}): 
         Direction = BEARISH
     
-    MAX RISK EXPOSURE: ${risk_amt}
+    MAX RISK EXPOSURE: ${risk_amt:,.2f}
     SIGNAL STRENGTH: 84% (High Conviction)
     """)
 
@@ -95,7 +98,7 @@ st.markdown("---")
 if os.path.exists("backtest_results.csv"):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df.index, y=df['Bot_Performance'], name="Neuro-Quant AI", line=dict(color='#00ff00', width=3)))
-    fig.add_trace(go.Scatter(x=df.index, y=df['Market_Performance'], name="Benchmark", line=dict(color='#444', dash='dot')))
+    fig.add_trace(go.Scatter(x=df.index, y=df['Market_Performance'], name="Benchmark", line=dict(color='#ff4b4b', dash='dot')))
     fig.update_layout(template="plotly_dark", height=500, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
     st.plotly_chart(fig, use_container_width=True)
 
