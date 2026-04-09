@@ -55,12 +55,12 @@ try:
     tp_dist = atr * 3.0
 
     if prediction == 1:
-        signal_type = "BUY/LONG 📈"
+        signal_type = "BUY/LONG "
         sl = current_price - sl_dist
         tp = current_price + tp_dist
         confidence = prob[1] * 100
     else:
-        signal_type = "SELL/SHORT 📉"
+        signal_type = "SELL/SHORT "
         sl = current_price + sl_dist
         tp = current_price - tp_dist
         confidence = prob[0] * 100
