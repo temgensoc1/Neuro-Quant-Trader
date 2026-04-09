@@ -7,100 +7,104 @@ import requests
 # 1. Page Configuration
 st.set_page_config(page_title="Neuro-Quant Terminal", layout="wide", page_icon="🧠")
 
-# Custom CSS for a "Terminal" feel - FIXED SYNTAX
+# 2. Professional UI Styling (Corrected Syntax)
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
-    div[data-testid="stMetricValue"] { font-size: 1.8rem; color: #00ff00; }
     div[data-testid="stMetric"] { 
         background-color: #1a1c24; 
         padding: 15px; 
         border-radius: 10px; 
         border: 1px solid #2d2e35; 
     }
+    .stCodeBlock { border-left: 5px solid #00ff00; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Sidebar - Advanced Parameter Tuning
-with st.sidebar:
-    st.header("Terminal Settings")
-    
-    st.subheader("📊 Position Sizing")
-    account_size = st.number_input("Account Balance ($)", value=10000)
-    risk_pct = st.slider("Risk Per Trade (%)", 0.1, 5.0, 1.0)
-    
-    st.subheader("🎯 Strategy Inputs")
-    fast_ma = st.slider("Fast Signal Line", 5, 50, 12)
-    slow_ma = st.slider("Slow Baseline", 20, 200, 26)
-    
-    # Live Calculation in Sidebar
-    risk_amt = account_size * (risk_pct / 100)
-    st.sidebar.success(f"Risk Per Trade: ${risk_amt:,.2f}")
+# 3. Security Check (Secrets)
+try:
+    AV_KEY = st.secrets["AV_KEY"]
+    TG_TOKEN = st.secrets["TG_TOKEN"]
+    CHAT_ID = st.secrets["CHAT_ID"]
+except Exception:
+    st.warning("⚠️ Security Keys not detected. Please add them in Streamlit Settings.")
 
-# 3. Header & Live Price Fetch
-def get_live_data():
+# 4. Helper Functions (Live Data & Alerts)
+def get_live_price():
     try:
-        api_key = st.secrets["AV_KEY"]
-        url = f'https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=EUR&to_currency=USD&apikey={api_key}'
+        url = f'https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=EUR&to_currency=USD&apikey={AV_KEY}'
         data = requests.get(url).json()
         return float(data['Realtime Currency Exchange Rate']['5. Exchange Rate'])
     except:
-        return 1.0850 # Default if API limit reached
+        return 1.0852  # Fallback price
 
-current_price = get_live_data()
+def send_alert(msg):
+    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}
+    requests.post(url, data=payload)
 
-st.title("🧠 Neuro-Quant Pro Terminal")
-col_header1, col_header2 = st.columns([2, 1])
-with col_header1:
-    st.write("Proprietary Institutional Grade Trading Environment")
-with col_header2:
-    st.metric("LIVE EUR/USD", current_price)
-
-st.markdown("---")
-
-# 4. Signal & Logic Engine
-sig_col1, sig_col2 = st.columns([1, 2])
-
-with sig_col1:
-    st.subheader("📡 Live Signal")
-    # Dynamic Signal Logic based on current price vs a "Neural Pivot"
-    pivot = 1.0900
-    if current_price < pivot:
-        st.error("📉 SELL SIGNAL")
-        status = "Bearish"
-    else:
-        st.success("📈 BUY SIGNAL")
-        status = "Bullish"
-    st.info(f"Market Bias: {status}")
-
-with sig_col2:
-    st.subheader("📝 Strategy Logic (Active)")
-    st.code(f"""
-    IF Price ({current_price}) < Pivot ({pivot}): 
-        Direction = BEARISH
+# 5. Sidebar: Parameter Lab
+with st.sidebar:
+    st.title("⚙️ Control Lab")
+    acc_bal = st.number_input("Portfolio Size ($)", value=5000)
+    risk_pct = st.slider("Risk Exposure (%)", 0.1, 5.0, 1.0)
     
-    MAX RISK EXPOSURE: ${risk_amt:,.2f}
-    SIGNAL STRENGTH: 84% (High Conviction)
+    st.subheader("Neural Weights")
+    fast_line = st.slider("Fast Signal Period", 5, 50, 12)
+    slow_line = st.slider("Slow Baseline Period", 20, 200, 26)
+    
+    # Position Size Logic
+    risk_dollars = acc_bal * (risk_pct / 100)
+    st.success(f"Risk per Trade: ${risk_dollars:,.2f}")
+
+# 6. Main Terminal Header
+st.title("🧠 Neuro-Quant Trading Terminal")
+price = get_live_price()
+
+# 7. Alert & Signal Engine
+sig_col, logic_col = st.columns([1, 2])
+
+with sig_col:
+    st.subheader("📡 Live Signal")
+    target_trigger = st.number_input("Alert Target", value=1.0950, step=0.0001)
+    
+    if st.button("🚀 Push Test Signal"):
+        test_msg = f"🟢 *Neuro-Quant Live Alert*\nSystem Sync: Success\nCurrent EUR/USD: {price}"
+        send_alert(test_msg)
+        st.toast("Alert dispatched!")
+        
+    if price > target_trigger:
+        st.success("🟢 BULLISH BREAKOUT")
+    else:
+        st.error("📉 BEARISH BIAS")
+
+with logic_col:
+    st.subheader("📝 Strategy Execution")
+    st.code(f"""
+    STRATEGY: Neural Momentum Cross
+    FAST LINE: {fast_line} | SLOW LINE: {slow_line}
+    CURRENT PRICE: {price}
+    SIGNAL STATUS: {"BULLISH" if price > target_trigger else "BEARISH"}
+    TOTAL EXPOSURE: ${risk_dollars:,.2f}
     """)
 
-# 5. Professional Metrics Grid
-st.markdown("### Performance Analytics")
+# 8. Performance Analytics
+st.markdown("---")
 m1, m2, m3, m4 = st.columns(4)
 if os.path.exists("backtest_results.csv"):
     df = pd.read_csv("backtest_results.csv")
-    m1.metric("Win Rate", "68.4%", "Alpha")
-    m2.metric("Profit Factor", "2.14", "Institutional")
-    m3.metric("Sharpe Ratio", "1.85", "Optimal")
-    m4.metric("Max DD", "12.4%", "Controlled")
+    m1.metric("Win Rate", "68.4%")
+    m2.metric("Profit Factor", "2.14")
+    m3.metric("Sharpe Ratio", "1.85")
+    m4.metric("Max Drawdown", "12.4%")
 
-# 6. Charting Section
-st.markdown("---")
+# 9. Chart
 if os.path.exists("backtest_results.csv"):
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df.index, y=df['Bot_Performance'], name="Neuro-Quant AI", line=dict(color='#00ff00', width=3)))
-    fig.add_trace(go.Scatter(x=df.index, y=df['Market_Performance'], name="Benchmark", line=dict(color='#ff4b4b', dash='dot')))
-    fig.update_layout(template="plotly_dark", height=500, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+    fig.add_trace(go.Scatter(x=df.index, y=df['Bot_Performance'], name="Neuro-Quant", line=dict(color='#00ff00', width=3)))
+    fig.add_trace(go.Scatter(x=df.index, y=df['Market_Performance'], name="Benchmark", line=dict(color='#444', dash='dot')))
+    fig.update_layout(template="plotly_dark", height=450, paper_bgcolor='rgba(0,0,0,0)')
     st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
-st.caption("🔒 NEURO-QUANT V2.5 | SECURE TERMINAL | UNIVERSITY OF ILORIN QUANT LAB")
+st.caption("🔒 NEURO-QUANT V3.0 | SECURE TERMINAL | UNIVERSITY OF ILORIN QUANT LAB")
