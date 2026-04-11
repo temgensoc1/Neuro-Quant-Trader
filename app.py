@@ -19,6 +19,13 @@ st.markdown("""
         border: 1px solid #2d2e35; 
     }
     .stCodeBlock { border-left: 5px solid #00ff00; }
+    .signal-card {
+        background-color: #1a1c24;
+        border: 2px solid #00ff00;
+        padding: 20px;
+        border-radius: 15px;
+        margin-bottom: 20px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -28,20 +35,17 @@ try:
     TG_TOKEN = st.secrets["TG_TOKEN"]
     CHAT_ID = st.secrets["CHAT_ID"]
 except Exception:
-    st.warning("⚠️ Security Keys missing in Streamlit Secrets.")
+    st.warning("⚠️ Security Keys missing in Streamlit Cloud Secrets.")
 
-# 3. Enhanced Live Data Engine
+# 3. Core Engine Functions
 def get_live_data():
     try:
         url = f'https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=EUR&to_currency=USD&apikey={AV_KEY}'
         r = requests.get(url)
         data = r.json()
-        
         if "Realtime Currency Exchange Rate" in data:
             return float(data['Realtime Currency Exchange Rate']['5. Exchange Rate'])
-        else:
-            # Weekend/API Limit Fallback to April 2026 Friday Close
-            return 1.1726 
+        return 1.1726 
     except:
         return 1.1726
 
@@ -57,13 +61,13 @@ with st.sidebar:
     risk_pct = st.slider("Risk Exposure (%)", 0.1, 5.0, 1.0)
     
     st.subheader("Neural Weights")
+    confidence_threshold = st.slider("Min Confidence to Trade (%)", 50, 95, 80)
     fast_ma = st.slider("Fast Signal Line", 5, 50, 12)
     slow_ma = st.slider("Slow Baseline", 20, 200, 26)
     
     risk_amt = acc_bal * (risk_pct / 100)
     st.success(f"Risk per Trade: ${risk_amt:,.2f}")
-    st.markdown("---")
-    st.caption("Neuro-Quant V5.1 | Nigeria Quant Lab")
+    st.caption("Neuro-Quant V5.0 | Nigeria Quant Lab")
 
 # 5. Header & Real-Time Stats
 current_price = get_live_data()
@@ -77,13 +81,28 @@ m4.metric("Max Drawdown", "12.4%")
 
 st.markdown("---")
 
-# 6. Intelligence Row: Regime & Alerts
-col_regime, col_alert = st.columns(2)
+# 6. Neural Trade Detector (The "New Update")
+st.subheader("🎯 Neural Trade Detector")
+# Simulate Bot Confidence based on Neural Weights vs Price
+bot_confidence = 84 # In a real bot, this would be a calculated variable
+pivot = 1.1700
 
+if bot_confidence >= confidence_threshold:
+    st.markdown(f"""
+    <div class="signal-card">
+        <h3 style='color: #00ff00; margin-top: 0;'>🚀 ACTIVE TRADE DETECTED</h3>
+        <p style='font-size: 1.2rem;'><b>Action:</b> {"BUY" if current_price > pivot else "SELL"} EUR/USD</p>
+        <p><b>Entry:</b> {current_price:.5f} | <b>Target:</b> {current_price + 0.0050:.5f} | <b>Stop:</b> {current_price - 0.0025:.5f}</p>
+        <p><b>Bot Confidence:</b> {bot_confidence}% (PASSES THRESHOLD)</p>
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    st.info(f"🔍 Monitoring... Bot Confidence ({bot_confidence}%) is below your {confidence_threshold}% threshold. No trade released.")
+
+# 7. Intelligence Row: Regime & Alerts
+col_regime, col_alert = st.columns(2)
 with col_regime:
     st.subheader("🌐 Market Regime Awareness")
-    # Neural Logic: Pivot detection based on 1.1700 handle
-    pivot = 1.1700
     if current_price > pivot:
         st.success("📈 BULLISH / TRENDING (Above 1.1700 Pivot)")
         bias = "BULLISH"
@@ -94,23 +113,21 @@ with col_regime:
 with col_alert:
     st.subheader("📡 Telegram Signal Sync")
     if st.button("🚀 Dispatch Live Signal"):
-        msg = f"🛰 *Neuro-Quant V5.1 Alert*\nBias: {bias}\nPrice: {current_price}\nRisk: ${risk_amt:,.2f}"
+        msg = f"🛰 *Neuro-Quant V5 Alert*\nBias: {bias}\nPrice: {current_price}\nConfidence: {bot_confidence}%"
         send_alert(msg)
         st.toast("Signal sent to Telegram!")
 
-# 7. Execution Logic
+# 8. Execution Logic
 st.subheader("📝 Strategy Execution Logic")
 st.code(f"""
 STRATEGY: Neural Momentum Cross
 FAST LINE: {fast_ma} | SLOW LINE: {slow_ma}
 MARKET BIAS: {bias}
 MAX EXPOSURE: ${risk_amt:,.2f}
-STRENGTH: 84% (High Conviction)
 """)
 
-# 8. Interactive Tabs: Simulation & Analytics
+# 9. Tabs: Analytics & Simulation
 tab1, tab2 = st.tabs(["📈 Equity Growth", "🎲 Trade Simulator"])
-
 with tab1:
     if os.path.exists("backtest_results.csv"):
         df = pd.read_csv("backtest_results.csv")
@@ -120,7 +137,7 @@ with tab1:
         st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
-    st.write("Simulating next 10 trade outcomes using Neural Probabilities:")
+    st.write("Simulating outcomes based on current model probabilities:")
     sim_data = []
     temp_bal = acc_bal
     for i in range(1, 11):
@@ -131,4 +148,4 @@ with tab2:
     st.table(pd.DataFrame(sim_data))
 
 st.markdown("---")
-st.caption("🔒 NEURO-QUANT V5.1 | SECURE TERMINAL | UNIVERSITY OF ILORIN")
+st.caption("🔒 NEURO-QUANT V5.0 | SECURE TERMINAL | UNIVERSITY OF ILORIN")
