@@ -1,7 +1,7 @@
 import requests
 import os
 
-# Use GitHub Secrets for security
+# GitHub Secrets
 AV_KEY = os.getenv("AV_KEY")
 TG_TOKEN = os.getenv("TG_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
@@ -15,9 +15,40 @@ def send_alert(msg):
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
-# Logic: If price hits a pivot or confidence is high
-price = get_price()
-if price > 1.1700:
-    send_alert(f"🤖 *AUTO-SCAN:* Bullish Bias confirmed at {price}. Check Terminal for levels.")
-elif price < 1.1650:
-    send_alert(f"🤖 *AUTO-SCAN:* Bearish Pressure at {price}. Monitoring for exit.")
+# The Signal Engine
+try:
+    price = get_price()
+    pivot = 1.1700
+    confidence = 84 
+    
+    # 90 Pips = 0.0090 | 30 Pips = 0.0030
+    tp_distance = 0.0090
+    sl_distance = 0.0030
+    
+    if confidence >= 80:
+        if price > pivot:
+            # BULLISH TRADE SETUP
+            tp = price + tp_distance
+            sl = price - sl_distance
+            msg = (f"NEURO-QUANT TRADE ALERT\n\n"
+                   f"Action: BUY EUR/USD\n"
+                   f"Entry: {price:.5f}\n"
+                   f"TP: {tp:.5f}\n"
+                   f"SL: {sl:.5f}\n"
+                   f"Confidence: {confidence}%")
+            send_alert(msg)
+            
+        elif price < (pivot - 0.0050):
+            # BEARISH TRADE SETUP
+            tp = price - tp_distance
+            sl = price + sl_distance
+            msg = (f"NEURO-QUANT TRADE ALERT\n\n"
+                   f"Action: SELL EUR/USD\n"
+                   f"Entry: {price:.5f}\n"
+                   f"TP: {tp:.5f}\n"
+                   f"SL: {sl:.5f}\n"
+                   f"Confidence: {confidence}%")
+            send_alert(msg)
+            
+except Exception as e:
+    print(f"Error: {e}")
