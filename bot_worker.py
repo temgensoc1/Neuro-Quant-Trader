@@ -1,5 +1,7 @@
 import requests
 import os
+from datetime import datetime
+import pytz
 
 # GitHub Secrets
 AV_KEY = os.getenv("AV_KEY")
@@ -18,21 +20,32 @@ def send_alert(msg):
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
+def is_market_active():
+    # Set timezone to West Africa Time (Lagos/Ilorin)
+    wat = pytz.timezone('Africa/Lagos')
+    now = datetime.now(wat)
+    current_hour = now.hour
+    
+    # Active Window: 08:00 to 18:00 (8 AM to 6 PM)
+    if 8 <= current_hour <= 18:
+        return True
+    return False
+
 def run_analysis():
+    # Only proceed if we are in the active trading window
+    if not is_market_active():
+        print("Market is currently in quiet zone. Monitoring only, no alerts.")
+        return
+
     price = get_price()
     if not price:
         return
 
-    # Dynamic Pivot Logic (Calculated based on recent market structure)
-    # For now, we use 1.1700 as the baseline for the shift
     baseline = 1.1700
     confidence = 85
-    
-    # 90 Pips TP | 30 Pips SL
     tp_dist = 0.0090
     sl_dist = 0.0030
 
-    # Detection of Market Shift
     if price > baseline:
         action = "BUY"
         tp = price + tp_dist
@@ -45,7 +58,7 @@ def run_analysis():
         status = "BEARISH REGIME DETECTED"
 
     if confidence >= 80:
-        message = (f"MARKET REGIME SHIFT\n\n"
+        message = (f"NEURO-QUANT ACTIVE SESSION ALERT\n\n"
                    f"Status: {status}\n"
                    f"Action: {action} EUR/USD\n"
                    f"Entry: {price:.5f}\n"
