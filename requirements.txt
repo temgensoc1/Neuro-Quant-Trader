@@ -38,3 +38,7 @@ pandas
 numpy
 plotly
 streamlit-autorefresh
+requests
+pandas
+streamlit-autorefresh
+pytz
