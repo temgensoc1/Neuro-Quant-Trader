@@ -3,63 +3,66 @@ import os
 from datetime import datetime
 import pytz
 
-# Secrets pulled from GitHub Environment
+# Secrets
 AV_KEY = os.getenv("AV_KEY")
 TG_TOKEN = os.getenv("TG_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-def get_market_data():
+# Dynamic Multi-Asset Config
+# EUR/USD: 60 pip TP | 20 pip SL
+# XAU/USD: $10 (1000 point) TP | $4 (400 point) SL
+ASSETS = {
+    "EURUSD": {"res": 1.1750, "sup": 1.1650, "tp": 0.0060, "sl": 0.0020},
+    "XAUUSD": {"res": 2400.00, "sup": 2360.00, "tp": 10.00, "sl": 4.00}
+}
+
+def get_price(symbol):
     try:
-        url = f'https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=EUR&to_currency=USD&apikey={AV_KEY}'
-        r = requests.get(url)
-        data = r.json()
-        return float(data['Realtime Currency Exchange Rate']['5. Exchange Rate'])
+        if symbol == "XAUUSD":
+            # Using Commodities endpoint for Gold
+            url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=GOLD&apikey={AV_KEY}'
+            r = requests.get(url).json()
+            return float(r['Global Quote']['05. price'])
+        else:
+            # Using Forex endpoint for EURUSD
+            url = f'https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=EUR&to_currency=USD&apikey={AV_KEY}'
+            r = requests.get(url).json()
+            return float(r['Realtime Currency Exchange Rate']['5. Exchange Rate'])
     except Exception as e:
-        print(f"Data Fetch Error: {e}")
+        print(f"Error fetching {symbol}: {e}")
         return None
 
 def is_kill_zone():
-    # West Africa Time
     wat = pytz.timezone('Africa/Lagos')
     now = datetime.now(wat)
-    # High Liquidity Window: 12:00 to 17:00 WAT
-    return 12 <= now.hour <= 17
+    # 8 AM to 6 PM WAT (Covers London and NY Open)
+    return 8 <= now.hour <= 18
 
 def send_alert(msg):
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
-def analyze_strategy():
+def run_analysis():
     if not is_kill_zone():
-        print("Outside High-Probability Kill Zone. Standing by.")
+        print("Outside active sessions. Monitoring only.")
         return
 
-    price = get_market_data()
-    if not price: return
+    for symbol, config in ASSETS.items():
+        price = get_price(symbol)
+        if not price: continue
 
-    # V6 Breakout Logic
-    # We trade the breakout of a defined range to avoid 'choppy' markets
-    resistance = 1.1750
-    support = 1.1650
-    
-    if price > resistance:
-        signal, action = "BULLISH BREAKOUT", "BUY"
-        tp, sl = price + 0.0060, price - 0.0020
-    elif price < support:
-        signal, action = "BEARISH BREAKOUT", "SELL"
-        tp, sl = price - 0.0060, price + 0.0020
-    else:
-        print("Price within neutral range. No trade.")
-        return
-
-    message = (f"NEURO-QUANT V6: {signal}\n\n"
-               f"Action: {action} EUR/USD\n"
-               f"Entry: {price:.5f}\n"
-               f"TP: {tp:.5f}\n"
-               f"SL: {sl:.5f}\n"
-               f"Status: High Liquidity Entry")
-    
-    send_alert(message)
+        if price > config["res"]:
+            msg = (f"NEURO-QUANT V7: {symbol} BULLISH\n"
+                   f"Price: {price:.2f}\n"
+                   f"Action: BUY\n"
+                   f"TP: {price + config['tp']:.2f} | SL: {price - config['sl']:.2f}")
+            send_alert(msg)
+        elif price < config["sup"]:
+            msg = (f"NEURO-QUANT V7: {symbol} BEARISH\n"
+                   f"Price: {price:.2f}\n"
+                   f"Action: SELL\n"
+                   f"TP: {price - config['tp']:.2f} | SL: {price + config['sl']:.2f}")
+            send_alert(msg)
 
 if __name__ == "__main__":
-    analyze_strategy()
+    run_analysis()
