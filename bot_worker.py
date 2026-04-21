@@ -8,23 +8,20 @@ AV_KEY = os.getenv("AV_KEY")
 TG_TOKEN = os.getenv("TG_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# Dynamic Multi-Asset Config
-# EUR/USD: 60 pip TP | 20 pip SL
-# XAU/USD: $10 (1000 point) TP | $4 (400 point) SL
+# Strategy Config with Volatility Multipliers
+# vol_mult: 1.0 is standard. Increase (e.g., 1.5) to widen SL/TP for high volatility.
 ASSETS = {
-    "EURUSD": {"res": 1.1750, "sup": 1.1650, "tp": 0.0060, "sl": 0.0020},
-    "XAUUSD": {"res": 2400.00, "sup": 2360.00, "tp": 10.00, "sl": 4.00}
+    "EURUSD": {"res": 1.1750, "sup": 1.1650, "tp": 0.0060, "sl": 0.0020, "vol_mult": 1.0},
+    "XAUUSD": {"res": 2400.00, "sup": 2360.00, "tp": 10.00, "sl": 4.00, "vol_mult": 1.2}
 }
 
 def get_price(symbol):
     try:
         if symbol == "XAUUSD":
-            # Using Commodities endpoint for Gold
             url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=GOLD&apikey={AV_KEY}'
             r = requests.get(url).json()
             return float(r['Global Quote']['05. price'])
         else:
-            # Using Forex endpoint for EURUSD
             url = f'https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=EUR&to_currency=USD&apikey={AV_KEY}'
             r = requests.get(url).json()
             return float(r['Realtime Currency Exchange Rate']['5. Exchange Rate'])
@@ -35,7 +32,6 @@ def get_price(symbol):
 def is_kill_zone():
     wat = pytz.timezone('Africa/Lagos')
     now = datetime.now(wat)
-    # 8 AM to 6 PM WAT (Covers London and NY Open)
     return 8 <= now.hour <= 18
 
 def send_alert(msg):
@@ -44,24 +40,44 @@ def send_alert(msg):
 
 def run_analysis():
     if not is_kill_zone():
-        print("Outside active sessions. Monitoring only.")
         return
 
     for symbol, config in ASSETS.items():
         price = get_price(symbol)
         if not price: continue
+        
+        # Calculate dynamic levels
+        mult = config["vol_mult"]
+        tp_dist = config["tp"] * mult
+        sl_dist = config["sl"] * mult
 
         if price > config["res"]:
-            msg = (f"NEURO-QUANT V7: {symbol} BULLISH\n"
-                   f"Price: {price:.2f}\n"
-                   f"Action: BUY\n"
-                   f"TP: {price + config['tp']:.2f} | SL: {price - config['sl']:.2f}")
+            action = "BUY"
+            tp = price + tp_dist
+            sl = price - sl_dist
+            
+            # Formatting block: Ensures 5 decimals for EURUSD, 2 for XAUUSD
+            fmt = "{:.5f}" if symbol == "EURUSD" else "{:.2f}"
+            msg = (f"NEURO-QUANT V7: {symbol} BREAKOUT\n"
+                   f"Action: {action}\n"
+                   f"Entry: {fmt.format(price)}\n"
+                   f"TP: {fmt.format(tp)}\n"
+                   f"SL: {fmt.format(sl)}\n"
+                   f"Status: Volatility Multiplier {mult}x")
             send_alert(msg)
+
         elif price < config["sup"]:
-            msg = (f"NEURO-QUANT V7: {symbol} BEARISH\n"
-                   f"Price: {price:.2f}\n"
-                   f"Action: SELL\n"
-                   f"TP: {price - config['tp']:.2f} | SL: {price + config['sl']:.2f}")
+            action = "SELL"
+            tp = price - tp_dist
+            sl = price + sl_dist
+            
+            fmt = "{:.5f}" if symbol == "EURUSD" else "{:.2f}"
+            msg = (f"NEURO-QUANT V7: {symbol} BREAKOUT\n"
+                   f"Action: {action}\n"
+                   f"Entry: {fmt.format(price)}\n"
+                   f"TP: {fmt.format(tp)}\n"
+                   f"SL: {fmt.format(sl)}\n"
+                   f"Status: Volatility Multiplier {mult}x")
             send_alert(msg)
 
 if __name__ == "__main__":
