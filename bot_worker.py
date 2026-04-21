@@ -2,18 +2,30 @@ import requests
 import os
 from datetime import datetime
 import pytz
+import pandas as pd
 
 # Secrets
 AV_KEY = os.getenv("AV_KEY")
 TG_TOKEN = os.getenv("TG_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# Strategy Config with Volatility Multipliers
-# vol_mult: 1.0 is standard. Increase (e.g., 1.5) to widen SL/TP for high volatility.
 ASSETS = {
-    "EURUSD": {"res": 1.1750, "sup": 1.1650, "tp": 0.0060, "sl": 0.0020, "vol_mult": 1.0},
-    "XAUUSD": {"res": 2400.00, "sup": 2360.00, "tp": 10.00, "sl": 4.00, "vol_mult": 1.2}
+    "EURUSD": {"res": 1.1750, "sup": 1.1650},
+    "XAUUSD": {"res": 2400.00, "sup": 2360.00}
 }
+
+def get_atr(symbol):
+    """Calculates Institutional volatility (ATR 14)."""
+    try:
+        # Fetching last 14 hours of data
+        url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={"EURUSD" if symbol=="EURUSD" else "GOLD"}&interval=60min&apikey={AV_KEY}'
+        data = requests.get(url).json()
+        df = pd.DataFrame.from_dict(data['Time Series (60min)'], orient='index').astype(float)
+        # ATR Calculation: Average of (High - Low) over 14 periods
+        atr = (df['2. high'] - df['3. low']).iloc[:14].mean()
+        return atr
+    except:
+        return 0.0015 if symbol == "EURUSD" else 5.0 # Fallback
 
 def get_price(symbol):
     try:
@@ -25,59 +37,41 @@ def get_price(symbol):
             url = f'https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=EUR&to_currency=USD&apikey={AV_KEY}'
             r = requests.get(url).json()
             return float(r['Realtime Currency Exchange Rate']['5. Exchange Rate'])
-    except Exception as e:
-        print(f"Error fetching {symbol}: {e}")
+    except:
         return None
-
-def is_kill_zone():
-    wat = pytz.timezone('Africa/Lagos')
-    now = datetime.now(wat)
-    return 8 <= now.hour <= 18
 
 def send_alert(msg):
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 def run_analysis():
-    if not is_kill_zone():
-        return
+    # Only run during market hours (8 AM - 6 PM WAT)
+    wat = pytz.timezone('Africa/Lagos')
+    if not (8 <= datetime.now(wat).hour <= 18): return
 
     for symbol, config in ASSETS.items():
         price = get_price(symbol)
-        if not price: continue
+        atr = get_atr(symbol)
+        if not price or not atr: continue
         
-        # Calculate dynamic levels
-        mult = config["vol_mult"]
-        tp_dist = config["tp"] * mult
-        sl_dist = config["sl"] * mult
+        # Institutional Logic: SL = 1.5x ATR, TP = 3x ATR
+        sl = atr * 1.5
+        tp = atr * 3.0
+        fmt = "{:.5f}" if symbol == "EURUSD" else "{:.2f}"
 
         if price > config["res"]:
-            action = "BUY"
-            tp = price + tp_dist
-            sl = price - sl_dist
-            
-            # Formatting block: Ensures 5 decimals for EURUSD, 2 for XAUUSD
-            fmt = "{:.5f}" if symbol == "EURUSD" else "{:.2f}"
-            msg = (f"NEURO-QUANT V7: {symbol} BREAKOUT\n"
-                   f"Action: {action}\n"
-                   f"Entry: {fmt.format(price)}\n"
-                   f"TP: {fmt.format(tp)}\n"
-                   f"SL: {fmt.format(sl)}\n"
-                   f"Status: Volatility Multiplier {mult}x")
+            msg = (f"NEURO-QUANT V8 (ATR): {symbol} BULLISH\n"
+                   f"Price: {fmt.format(price)}\n"
+                   f"TP: {fmt.format(price + tp)}\n"
+                   f"SL: {fmt.format(price - sl)}\n"
+                   f"ATR Filter: {fmt.format(atr)}")
             send_alert(msg)
-
         elif price < config["sup"]:
-            action = "SELL"
-            tp = price - tp_dist
-            sl = price + sl_dist
-            
-            fmt = "{:.5f}" if symbol == "EURUSD" else "{:.2f}"
-            msg = (f"NEURO-QUANT V7: {symbol} BREAKOUT\n"
-                   f"Action: {action}\n"
-                   f"Entry: {fmt.format(price)}\n"
-                   f"TP: {fmt.format(tp)}\n"
-                   f"SL: {fmt.format(sl)}\n"
-                   f"Status: Volatility Multiplier {mult}x")
+            msg = (f"NEURO-QUANT V8 (ATR): {symbol} BEARISH\n"
+                   f"Price: {fmt.format(price)}\n"
+                   f"TP: {fmt.format(price - tp)}\n"
+                   f"SL: {fmt.format(price + sl)}\n"
+                   f"ATR Filter: {fmt.format(atr)}")
             send_alert(msg)
 
 if __name__ == "__main__":
