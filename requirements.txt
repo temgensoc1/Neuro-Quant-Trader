@@ -42,3 +42,6 @@ requests
 pandas
 streamlit-autorefresh
 pytz
+requests
+pytz
+pandas
