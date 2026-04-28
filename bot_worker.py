@@ -9,9 +9,10 @@ AV_KEY = os.getenv("AV_KEY")
 TG_TOKEN = os.getenv("TG_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
+# UPDATED LEVELS: Tightened to reflect current 1.1714 (EUR) and 4714.00 (GOLD)
 ASSETS = {
-    "EURUSD": {"res": 1.1750, "sup": 1.1650},
-    "XAUUSD": {"res": 2400.00, "sup": 2360.00}
+    "EURUSD": {"res": 1.1750, "sup": 1.1680},
+    "XAUUSD": {"res": 4750.00, "sup": 4650.00}
 }
 
 def get_market_data(symbol):
@@ -24,14 +25,9 @@ def get_market_data(symbol):
     except:
         return None
 
-def get_dxy_trend():
-    """Checks if the Dollar Index is likely bullish or bearish."""
-    try:
-        # Simple Proxy: EURUSD tends to move inverse to USD strength
-        # In a production environment, you'd fetch actual DXY index here
-        return "NEUTRAL" 
-    except:
-        return "NEUTRAL"
+def send_alert(msg):
+    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+    requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 def run_analysis():
     wat = pytz.timezone('Africa/Lagos')
@@ -41,32 +37,28 @@ def run_analysis():
         df = get_market_data(symbol)
         if df is None: continue
         
-        # 1. Calculate Indicators
+        # 1. Indicators
         price = df['4. close'].iloc[0]
-        sma50 = df['4. close'].iloc[:50].mean() # 50-hour Moving Average
+        sma50 = df['4. close'].iloc[:50].mean() # 50-hour Trend Filter
         atr = (df['2. high'] - df['3. low']).iloc[:14].mean()
         
         # 2. Trend Logic
         is_uptrend = price > sma50
         
-        # 3. Execution (With Trend Filter)
+        # 3. Dynamic Execution
         sl = atr * 1.5
         tp = atr * 3.0
         fmt = "{:.5f}" if symbol == "EURUSD" else "{:.2f}"
 
-        # BUY Logic: Only if breakout AND in uptrend
+        # BUY Logic: Breakout + Must be in Uptrend (Above SMA50)
         if price > config["res"] and is_uptrend:
             msg = f"NEURO-QUANT V9: {symbol} BULLISH TREND\nPrice: {fmt.format(price)}\nTP: {fmt.format(price + tp)}\nSL: {fmt.format(price - sl)}"
             send_alert(msg)
             
-        # SELL Logic: Only if breakout AND in downtrend
+        # SELL Logic: Breakout + Must be in Downtrend (Below SMA50)
         elif price < config["sup"] and not is_uptrend:
             msg = f"NEURO-QUANT V9: {symbol} BEARISH TREND\nPrice: {fmt.format(price)}\nTP: {fmt.format(price - tp)}\nSL: {fmt.format(price + sl)}"
             send_alert(msg)
-
-def send_alert(msg):
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 if __name__ == "__main__":
     run_analysis()
