@@ -14,65 +14,59 @@ ASSETS = {
     "XAUUSD": {"res": 2400.00, "sup": 2360.00}
 }
 
-def get_atr(symbol):
-    """Calculates Institutional volatility (ATR 14)."""
+def get_market_data(symbol):
+    """Fetches Intraday data for ATR and Trend calculation."""
     try:
-        # Fetching last 14 hours of data
         url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={"EURUSD" if symbol=="EURUSD" else "GOLD"}&interval=60min&apikey={AV_KEY}'
         data = requests.get(url).json()
         df = pd.DataFrame.from_dict(data['Time Series (60min)'], orient='index').astype(float)
-        # ATR Calculation: Average of (High - Low) over 14 periods
-        atr = (df['2. high'] - df['3. low']).iloc[:14].mean()
-        return atr
-    except:
-        return 0.0015 if symbol == "EURUSD" else 5.0 # Fallback
-
-def get_price(symbol):
-    try:
-        if symbol == "XAUUSD":
-            url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=GOLD&apikey={AV_KEY}'
-            r = requests.get(url).json()
-            return float(r['Global Quote']['05. price'])
-        else:
-            url = f'https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=EUR&to_currency=USD&apikey={AV_KEY}'
-            r = requests.get(url).json()
-            return float(r['Realtime Currency Exchange Rate']['5. Exchange Rate'])
+        return df
     except:
         return None
 
-def send_alert(msg):
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+def get_dxy_trend():
+    """Checks if the Dollar Index is likely bullish or bearish."""
+    try:
+        # Simple Proxy: EURUSD tends to move inverse to USD strength
+        # In a production environment, you'd fetch actual DXY index here
+        return "NEUTRAL" 
+    except:
+        return "NEUTRAL"
 
 def run_analysis():
-    # Only run during market hours (8 AM - 6 PM WAT)
     wat = pytz.timezone('Africa/Lagos')
     if not (8 <= datetime.now(wat).hour <= 18): return
 
     for symbol, config in ASSETS.items():
-        price = get_price(symbol)
-        atr = get_atr(symbol)
-        if not price or not atr: continue
+        df = get_market_data(symbol)
+        if df is None: continue
         
-        # Institutional Logic: SL = 1.5x ATR, TP = 3x ATR
+        # 1. Calculate Indicators
+        price = df['4. close'].iloc[0]
+        sma50 = df['4. close'].iloc[:50].mean() # 50-hour Moving Average
+        atr = (df['2. high'] - df['3. low']).iloc[:14].mean()
+        
+        # 2. Trend Logic
+        is_uptrend = price > sma50
+        
+        # 3. Execution (With Trend Filter)
         sl = atr * 1.5
         tp = atr * 3.0
         fmt = "{:.5f}" if symbol == "EURUSD" else "{:.2f}"
 
-        if price > config["res"]:
-            msg = (f"NEURO-QUANT V8 (ATR): {symbol} BULLISH\n"
-                   f"Price: {fmt.format(price)}\n"
-                   f"TP: {fmt.format(price + tp)}\n"
-                   f"SL: {fmt.format(price - sl)}\n"
-                   f"ATR Filter: {fmt.format(atr)}")
+        # BUY Logic: Only if breakout AND in uptrend
+        if price > config["res"] and is_uptrend:
+            msg = f"NEURO-QUANT V9: {symbol} BULLISH TREND\nPrice: {fmt.format(price)}\nTP: {fmt.format(price + tp)}\nSL: {fmt.format(price - sl)}"
             send_alert(msg)
-        elif price < config["sup"]:
-            msg = (f"NEURO-QUANT V8 (ATR): {symbol} BEARISH\n"
-                   f"Price: {fmt.format(price)}\n"
-                   f"TP: {fmt.format(price - tp)}\n"
-                   f"SL: {fmt.format(price + sl)}\n"
-                   f"ATR Filter: {fmt.format(atr)}")
+            
+        # SELL Logic: Only if breakout AND in downtrend
+        elif price < config["sup"] and not is_uptrend:
+            msg = f"NEURO-QUANT V9: {symbol} BEARISH TREND\nPrice: {fmt.format(price)}\nTP: {fmt.format(price - tp)}\nSL: {fmt.format(price + sl)}"
             send_alert(msg)
+
+def send_alert(msg):
+    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+    requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 if __name__ == "__main__":
     run_analysis()
